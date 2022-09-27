@@ -11,17 +11,19 @@ import "./DAOSafety.sol";
 contract DipBattle is DAOSafety {
     // ========== Events ==========
     event BattleStatus(uint256 indexed round, bool indexed status);
+    event ChipsUpdate(address indexed newChips);
     event ChipPowersUpdate(address indexed newChipPowers);
     event Scooped(uint256 indexed tokenId, address asset, uint256 amount);
 
     // ========== Public ==========
-    mapping(uint256 => uint256) public chipsUsedLastRound;
     bool public battleStatus;
+
+    address public chips;
+    address public chipPowers;
+
     uint256 public round;
 
-    // ========== Private/internal ==========
-    address private _chips;
-    address private _chipPowers;
+    mapping(uint256 => uint256) public chipsUsedLastRound;
 
     /**
      * @dev Require battleStatus == true;
@@ -32,24 +34,32 @@ contract DipBattle is DAOSafety {
     }
 
     /**
-     * @param chipPowers Address of ChipPowers.
-     * @param chips Address of Blue Chips (bowl bound).
+     * @param _chipPowers Address of ChipPowers.
+     * @param _chips Address of Blue Chips (bowl bound).
      */
     constructor(
         address _DAO_MULTISIG,
-        address chipPowers,
-        address chips
+        address _chipPowers,
+        address _chips
     ) DAOSafety(_DAO_MULTISIG) {
-        _chipPowers = chipPowers;
-        _chips = chips;
+        chipPowers = _chipPowers;
+        chips = _chips;
     }
 
     /**
      * @dev Set ChipPowers.
      */
-    function configChipPowers(address chipPowers) external onlyDAO {
-        _chipPowers = chipPowers;
-        emit ChipPowersUpdate(chipPowers);
+    function configChips(address _chips) external onlyDAO {
+        chips = _chips;
+        emit ChipsUpdate(_chips);
+    }
+
+    /**
+     * @dev Set ChipPowers.
+     */
+    function configChipPowers(address _chipPowers) external onlyDAO {
+        chipPowers = chipPowers;
+        emit ChipPowersUpdate(_chipPowers);
     }
 
     /**
@@ -65,29 +75,29 @@ contract DipBattle is DAOSafety {
 
     /**
      * @param assets Token addresses to scoop.
-     * @param chips Chip tokenId's.
+     * @param chipIds Chip tokenId's.
      */
-    function scoop(address[] calldata assets, uint256[] calldata chips)
+    function scoop(address[] calldata assets, uint256[] calldata chipIds)
         external
         whenNotPaused
         whenBattle
     {
-        require(assets.length == chips.length, "Incorrect calldata lenght");
+        require(assets.length == chipIds.length, "Incorrect calldata lenght");
         uint256 power;
         uint256 balance;
-        for (uint256 i; i < chips.length; i++) {
+        for (uint256 i; i < chipIds.length; i++) {
             require(
-                IERC721(_chips).ownerOf(chips[i]) == msg.sender,
+                IERC721(chips).ownerOf(chipIds[i]) == msg.sender,
                 "Chip not owned!"
             );
 
             require(
-                chipsUsedLastRound[chips[i]] != round,
+                chipsUsedLastRound[chipIds[i]] != round,
                 "Chip used this round"
             );
-            chipsUsedLastRound[chips[i]] = round;
+            chipsUsedLastRound[chipIds[i]] = round;
 
-            power = IChipPowers(_chipPowers).getPower(chips[i]);
+            power = IChipPowers(chipPowers).getPower(chipIds[i]);
             balance = IERC20(assets[i]).balanceOf(address(this));
             if (balance < power) {
                 // In case the contract has no more tokens
@@ -98,7 +108,7 @@ contract DipBattle is DAOSafety {
                     IERC20(assets[i]).transfer(msg.sender, power),
                     "Transfer failed!"
                 );
-                emit Scooped(chips[i], assets[i], power);
+                emit Scooped(chipIds[i], assets[i], power);
             }
         }
     }
@@ -111,9 +121,9 @@ contract DipBattle is DAOSafety {
         view
         returns (uint256[] memory)
     {
-        uint256 tokenCount = IBlueChips(_chips).balanceOf(owner);
+        uint256 tokenCount = IBlueChips(chips).balanceOf(owner);
         uint256[] memory allChips = new uint256[](tokenCount);
-        allChips = IBlueChips(_chips).tokensOfOwner(owner);
+        allChips = IBlueChips(chips).tokensOfOwner(owner);
         uint256 unusedCount;
         for (uint256 i; i < allChips.length; i++) {
             if (chipsUsedLastRound[allChips[i]] != round) {
