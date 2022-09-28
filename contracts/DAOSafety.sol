@@ -36,8 +36,7 @@ abstract contract DAOSafety is DAOController, Pausable {
     }
 
     function configDevs(address account, bool state) external onlyDAO {
-        devsAllowed[account] = state;
-        emit DevsUpdate(account, state);
+        _configDevs(account, state);
     }
 
     // ========== Make room for potential human errors (made by others) ==========
@@ -62,6 +61,13 @@ abstract contract DAOSafety is DAOController, Pausable {
     {
         IERC721(tokenAddress).transferFrom(address(this), msg.sender, tokenId);
         emit EmergencyNftTransfer(tokenAddress, tokenId);
+    }
+
+    // ========== Internal ==========
+
+    function _configDevs(address account, bool state) internal {
+        devsAllowed[account] = state;
+        emit DevsUpdate(account, state);
     }
 
     // ========== In case of other unforeseen events ==========

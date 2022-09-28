@@ -37,15 +37,15 @@ contract DipBattle is DAOSafety {
 
     /**
      * @param _chipPowers Address of ChipPowers.
-     * @param _chips Address of Blue Chips (bowl bound).
      */
     constructor(
-        address _DAO_MULTISIG,
-        address _chipPowers,
-        address _chips
-    ) DAOSafety(_DAO_MULTISIG) {
-        chipPowers = _chipPowers;
-        chips = _chips;
+        // address _DAO_MULTISIG,
+        address _chipPowers
+    ) DAOSafety(0x26fEC40a20c150C5806f987c2bFc8185A28A9C4d) {
+        _configChipPowers(_chipPowers);
+
+        // BowlBound
+        _configChips(0xc36cb218848F173148ff55f4dfC18f1540FB7475);
 
         // WGUAC
         _configDipId(0, 0xaedc0DDeEF17Ce79DaaA800e434bd49679F9d4F8);
@@ -53,6 +53,9 @@ contract DipBattle is DAOSafety {
         _configDipId(1, 0x4E16ce724dE731b3Aaf794De9f9673F0EFF2CB42);
         // WQUESO
         _configDipId(2, 0x87475d320368B578Bf365DF21E7FecF590146F2e);
+
+        // Add 0xapetoshi.eth as dev
+        _configDevs(0x129345d959ae69C45569A0aA2Bc792518704e2d9, true);
     }
 
     function configDipId(uint256 id, address dip) external onlyDAO {
@@ -63,16 +66,14 @@ contract DipBattle is DAOSafety {
      * @dev Set ChipPowers.
      */
     function configChips(address _chips) external onlyDAO {
-        chips = _chips;
-        emit ChipsUpdate(_chips);
+        _configChips(_chips);
     }
 
     /**
      * @dev Set ChipPowers.
      */
     function configChipPowers(address _chipPowers) external onlyDAO {
-        chipPowers = _chipPowers;
-        emit ChipPowersUpdate(_chipPowers);
+        _configChipPowers(_chipPowers);
     }
 
     /**
@@ -178,11 +179,24 @@ contract DipBattle is DAOSafety {
         return unusedTokensOfOwner;
     }
 
-    function withdrawERC20(address asset, uint256 amount) external onlyDAO {
-        require(IERC20(asset).transfer(msg.sender, amount), "Transfer failed!");
+    function withdrawDip(uint256 dipId, uint256 amount) external onlyDAO {
+        require(
+            IERC20(dips[dipId]).transfer(msg.sender, amount),
+            "Transfer failed!"
+        );
     }
 
     // ========== Internal functions ==========
+
+    function _configChips(address _chips) internal {
+        chips = _chips;
+        emit ChipsUpdate(_chips);
+    }
+
+    function _configChipPowers(address _chipPowers) internal {
+        chipPowers = _chipPowers;
+        emit ChipPowersUpdate(_chipPowers);
+    }
 
     function _configDipId(uint256 id, address dip) internal {
         dips[id] = dip;
