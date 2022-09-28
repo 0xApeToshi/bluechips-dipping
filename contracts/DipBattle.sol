@@ -158,7 +158,7 @@ contract DipBattle is DAOSafety {
             }
         }
 
-        if (unusedCount == 0) {
+        if (unusedCount == tokensOfOwner.length) {
             return tokensOfOwner;
         }
 
