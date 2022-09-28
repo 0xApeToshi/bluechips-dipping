@@ -11,6 +11,7 @@ import "./DAOSafety.sol";
 contract DipBattle is DAOSafety {
     // ========== Events ==========
     event BattleStatus(uint256 indexed round, bool indexed status);
+    event DipsUpdate(uint256 indexed newId, address indexed newDip);
     event ChipsUpdate(address indexed newChips);
     event ChipPowersUpdate(address indexed newChipPowers);
     event Scooped(uint256 indexed tokenId, address asset, uint256 amount);
@@ -23,7 +24,8 @@ contract DipBattle is DAOSafety {
 
     uint256 public round;
 
-    mapping(uint256 => uint256) public chipsUsedLastRound;
+    mapping(uint256 => address) public dips;
+    mapping(uint256 => uint256) public chipLastRound;
 
     /**
      * @dev Require battleStatus == true;
@@ -44,6 +46,17 @@ contract DipBattle is DAOSafety {
     ) DAOSafety(_DAO_MULTISIG) {
         chipPowers = _chipPowers;
         chips = _chips;
+
+        // WGUAC
+        _configDipId(0, 0xaedc0DDeEF17Ce79DaaA800e434bd49679F9d4F8);
+        // WSALAS
+        _configDipId(1, 0x4E16ce724dE731b3Aaf794De9f9673F0EFF2CB42);
+        // WQUESO
+        _configDipId(2, 0x87475d320368B578Bf365DF21E7FecF590146F2e);
+    }
+
+    function configDipId(uint256 id, address dip) external onlyDAO {
+        _configDipId(id, dip);
     }
 
     /**
@@ -58,7 +71,7 @@ contract DipBattle is DAOSafety {
      * @dev Set ChipPowers.
      */
     function configChipPowers(address _chipPowers) external onlyDAO {
-        chipPowers = chipPowers;
+        chipPowers = _chipPowers;
         emit ChipPowersUpdate(_chipPowers);
     }
 
@@ -74,78 +87,105 @@ contract DipBattle is DAOSafety {
     }
 
     /**
-     * @param assets Token addresses to scoop.
+     * @param dipIds Token addresses to scoop.
      * @param chipIds Chip tokenId's.
      */
-    function scoop(address[] calldata assets, uint256[] calldata chipIds)
+    function scoop(uint256[] calldata dipIds, uint256[] calldata chipIds)
         external
         whenNotPaused
         whenBattle
     {
-        require(assets.length == chipIds.length, "Incorrect calldata lenght");
+        require(dipIds.length == chipIds.length, "Incorrect calldata lenght");
+        uint256 chip;
         uint256 power;
         uint256 balance;
-        for (uint256 i; i < chipIds.length; i++) {
+        uint256 dipId;
+        address dip;
+        for (uint256 i; i < chipIds.length; ) {
+            chip = chipIds[i];
             require(
-                IERC721(chips).ownerOf(chipIds[i]) == msg.sender,
+                IERC721(chips).ownerOf(chip) == msg.sender,
                 "Chip not owned!"
             );
 
-            require(
-                chipsUsedLastRound[chipIds[i]] != round,
-                "Chip used this round"
-            );
-            chipsUsedLastRound[chipIds[i]] = round;
+            require(chipLastRound[chip] != round, "Chip used this round");
+            chipLastRound[chip] = round;
 
-            power = IChipPowers(chipPowers).getPower(chipIds[i]);
-            balance = IERC20(assets[i]).balanceOf(address(this));
+            dipId = dipIds[i];
+            dip = dips[dipId];
+
+            require(dip != address(0), "Invalid dip");
+
+            power = IChipPowers(chipPowers).getPower(chip);
+            balance = IERC20(dip).balanceOf(address(this));
             if (balance < power) {
                 // In case the contract has no more tokens
                 power = balance;
             }
             if (power > 0) {
                 require(
-                    IERC20(assets[i]).transfer(msg.sender, power),
+                    IERC20(dip).transfer(msg.sender, power),
                     "Transfer failed!"
                 );
-                emit Scooped(chipIds[i], assets[i], power);
+                emit Scooped(chip, dip, power);
+            }
+
+            unchecked {
+                i++;
             }
         }
     }
 
     /**
-     * @dev Return available (undipped) chips of `owner`.
+     * @dev Return available (undipped) chips of `owner`. First tokenId needs to start from 1.
      */
     function availableTokensOfOwner(address owner)
         external
         view
         returns (uint256[] memory)
     {
-        uint256 tokenCount = IBlueChips(chips).balanceOf(owner);
-        uint256[] memory allChips = new uint256[](tokenCount);
-        allChips = IBlueChips(chips).tokensOfOwner(owner);
+        uint256[] memory tokensOfOwner = IBlueChips(chips).tokensOfOwner(owner);
+        // TEST
         uint256 unusedCount;
-        for (uint256 i; i < allChips.length; i++) {
-            if (chipsUsedLastRound[allChips[i]] != round) {
+
+        uint256 tokenId;
+        for (uint256 i; i < tokensOfOwner.length; i++) {
+            tokenId = tokensOfOwner[i];
+
+            if (chipLastRound[tokenId] < round) {
                 unusedCount++;
             }
         }
 
         if (unusedCount == 0) {
-            return allChips;
+            return tokensOfOwner;
         }
-        uint256[] memory unusedChips = new uint256[](unusedCount);
+
+        uint256[] memory unusedTokensOfOwner = new uint256[](unusedCount);
         uint256 k;
-        for (uint256 i; i < unusedCount; i++) {
-            if (chipsUsedLastRound[allChips[i]] != round) {
-                unusedChips[k] = allChips[i];
-                k++;
+        for (uint256 i; i < tokensOfOwner.length; ) {
+            tokenId = tokensOfOwner[i];
+            if (chipLastRound[tokenId] < round) {
+                unusedTokensOfOwner[k] = tokenId;
+                unchecked {
+                    k++;
+                }
+            }
+            unchecked {
+                i++;
             }
         }
-        return unusedChips;
+        return unusedTokensOfOwner;
     }
 
     function withdrawERC20(address asset, uint256 amount) external onlyDAO {
         require(IERC20(asset).transfer(msg.sender, amount), "Transfer failed!");
+    }
+
+    // ========== Internal functions ==========
+
+    function _configDipId(uint256 id, address dip) internal {
+        dips[id] = dip;
+        emit DipsUpdate(id, dip);
     }
 }
