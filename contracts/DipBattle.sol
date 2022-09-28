@@ -41,7 +41,7 @@ contract DipBattle is DAOSafety {
     constructor(
         // address _DAO_MULTISIG,
         address _chipPowers
-    ) DAOSafety(0x26fEC40a20c150C5806f987c2bFc8185A28A9C4d) {
+    ) DAOSafety(0x9c8186Dd069f61E51eA66695A928735262EaDcA5) {
         _configChipPowers(_chipPowers);
 
         // BowlBound
